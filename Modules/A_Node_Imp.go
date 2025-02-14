@@ -15,13 +15,14 @@ type Node struct {
 	Destiny      map[string]int
 }
 
-func ReadFile(fileDirection string) map[string][][2]string {
+func ReadFile(fileDirection string) (map[string][][2]string) {
 	activities := make(map[string][][2]string)
 	file, err := os.Open(fileDirection)
 
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer file.Close()
 
 	csvReader := csv.NewReader(file)
 	csvReader.Comma = ';'
@@ -43,19 +44,18 @@ func ReadFile(fileDirection string) map[string][][2]string {
 
 		} else if len(data) == 2 {
 			data[0] = strings.TrimPrefix(data[0], "\ufeff")
-			activities[data[0]] = append(activities[data[0]], [2]string{data[1]})
+			activities[data[0]] = append(activities[data[0]], [2]string{data[1], "0"})
 
 		} else {
 			log.Fatal("Error: The file has an invalid format")
 		}
 	}
 
-	defer file.Close()
 	return activities
 }
 
-func CreateNode(activities map[string][][2]string) []Node {
-	createdNodes := make([]Node, 0)
+func CreateNode(activities map[string][][2]string) map[string]Node {
+	createdNodes := make(map[string]Node, 0)
 	for key, value := range activities {
 		node := Node{}
 		node.Destiny = make(map[string]int)
@@ -67,10 +67,12 @@ func CreateNode(activities map[string][][2]string) []Node {
 				}
 			}
 		}
-		createdNodes = append(createdNodes, node)
+		createdNodes[node.Activity] = node
 	}
 
-	createdNodes = append(createdNodes, CreateStretchingNode())
+	stretchingNode := CreateStretchingNode()
+
+	createdNodes[stretchingNode.Activity] = stretchingNode
 
 	return createdNodes
 }
@@ -83,16 +85,22 @@ func CreateStretchingNode() (node Node) {
 	return
 }
 
-func AddRecoveryTime(recoveryTimes map[string][][2]string, nodes []Node) []Node {
-	fullNodes := make([]Node, 0)
+func AddRecoveryTime(recoveryTimes map[string][][2]string, nodes map[string]Node) map[string]Node {
+	recoveryMap := make(map[string]int)
+
 	for key, value := range recoveryTimes {
-		for _, node := range nodes {
-			if key == node.Activity {
-				node.RecoveryTime, _ = strconv.Atoi(value[0][0])
-				fullNodes = append(fullNodes, node)
-			}
+		if len(value) > 0 {
+			recoveryMap[key], _ = strconv.Atoi(value[0][0])
 		}
 	}
 
-	return fullNodes
+	for nodeKey, nodeValue := range recoveryMap {
+		if nodes[nodeKey].Activity == nodeKey {
+			node := nodes[nodeKey]
+            node.RecoveryTime = nodeValue
+            nodes[nodeKey] = node
+		}
+	}
+
+	return nodes
 }
